@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Invoice {{ invoice.invoice_number }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            color: #333;
+        }
+        .invoice-box {
+            max-width: 800px;
+            margin: auto;
+            padding: 30px;
+            border: 1px solid #eee;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.15);
+        }
+        .invoice-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .invoice-details {
+            margin-bottom: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        table th, table td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        .tax-summary {
+            margin-top: 20px;
+            margin-bottom: 20px;
+        }
+        .total {
+            font-weight: bold;
+            font-size: 1.2em;
+            text-align: right;
+        }
+        .footer {
+            margin-top: 30px;
+            text-align: center;
+            color: #777;
+            font-size: 0.8em;
+        }
+    </style>
+</head>
+<body>
+    <div class="invoice-box">
+        <div class="invoice-header">
+            <div>
+                <h1>{{ business.name }}</h1>
+                <p>GSTIN: {{ business.gstin }}</p>
+                <p>{{ business.address }}</p>
+                <p>{{ business.state }}</p>
+            </div>
+            <div>
+                <h2>Tax Invoice</h2>
+                <p>Invoice #: {{ invoice.invoice_number }}</p>
+                <p>Date: {{ invoice.invoice_date.strftime('%d-%m-%Y') }}</p>
+                {% if invoice.due_date %}
+                <p>Due Date: {{ invoice.due_date.strftime('%d-%m-%Y') }}</p>
+                {% endif %}
+            </div>
+        </div>
+        
+        <div class="invoice-details">
+            <h3>Bill To:</h3>
+            <p>{{ customer.name }}</p>
+            {% if customer.gstin %}
+            <p>GSTIN: {{ customer.gstin }}</p>
+            {% endif %}
+            <p>{{ customer.address }}</p>
+            <p>{{ customer.state }}</p>
+        </div>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Item</th>
+                    <th>HSN/SAC</th>
+                    <th>Qty</th>
+                    <th>Rate</th>
+                    <th>Amount</th>
+                    {% if invoice.tax_type == 'CGST_SGST' %}
+                    <th>CGST %</th>
+                    <th>CGST</th>
+                    <th>SGST %</th>
+                    <th>SGST</th>
+                    {% else %}
+                    <th>IGST %</th>
+                    <th>IGST</th>
+                    {% endif %}
+                    <th>Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item, product in items %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ product.name }}</td>
+                    <td>{{ product.hsn_sac }}</td>
+                    <td>{{ item.quantity }} {{ product.unit }}</td>
+                    <td>₹{{ "%.2f"|format(item.rate) }}</td>
+                    <td>₹{{ "%.2f"|format(item.subtotal) }}</td>
+                    {% if invoice.tax_type == 'CGST_SGST' %}
+                    <td>{{ "%.2f"|format(item.tax_rate / 2) }}%</td>
+                    <td>₹{{ "%.2f"|format(item.cgst) }}</td>
+                    <td>{{ "%.2f"|format(item.tax_rate / 2) }}%</td>
+                    <td>₹{{ "%.2f"|format(item.sgst) }}</td>
+                    {% else %}
+                    <td>{{ "%.2f"|format(item.tax_rate) }}%</td>
+                    <td>₹{{ "%.2f"|format(item.igst) }}</td>
+                    {% endif %}
+                    <td>₹{{ "%.2f"|format(item.total) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        
+        <div class="tax-summary">
+            <table>
+                <tr>
+                    <td>Subtotal:</td>
+                    <td>₹{{ "%.2f"|format(invoice.subtotal) }}</td>
+                </tr>
+                {% if invoice.tax_type == 'CGST_SGST' %}
+                <tr>
+                    <td>CGST:</td>
+                    <td>₹{{ "%.2f"|format(invoice.cgst_total) }}</td>
+                </tr>
+                <tr>
+                    <td>SGST:</td>
+                    <td>₹{{ "%.2f"|format(invoice.sgst_total) }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td>IGST:</td>
+                    <td>₹{{ "%.2f"|format(invoice.igst_total) }}</td>
+                </tr>
+                {% endif %}
+                <tr class="total">
+                    <td>Total:</td>
+                    <td>₹{{ "%.2f"|format(invoice.total) }}</td>
+                </tr>
+            </table>
+        </div>
+        
+        {% if invoice.notes %}
+        <div class="notes">
+            <h3>Notes:</h3>
+            <p>{{ invoice.notes }}</p>
+        </div>
+        {% endif %}
+        
+        <div class="footer">
+            <p>Thank you for your business!</p>
+            <p>Generated by GSTInvoicePro</p>
+            <p>The invoice is a computer-generated invoice and requires no signature.</p>
+        </div>
+
+        <div style="margin-top: 50px; text-align: right;">
+            <p>For {{ business.name }}</p>
+            <div style="margin-top: 50px;">
+                <p>Authorized Signatory</p>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 
