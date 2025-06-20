@@ -28,7 +28,7 @@ interface Invoice {
   [key: string]: any; // For other properties that might be present
 }
 
-export default function EditInvoicePage({ params }: EditInvoicePageProps) {
+export default function EditInvoicePage() {
   const router = useRouter();
   const urlParams = useParams(); // Use the hook instead of direct params
   const [invoice, setInvoice] = useState<Invoice | null>(null);
