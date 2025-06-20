@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
     
     # CORS Settings
-    FRONTEND_ORIGIN: str
+    FRONTEND_ORIGIN: str = "https://gst-invoice-pro.vercel.app"  # Default production URL
     BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = []
     
     @validator("BACKEND_CORS_ORIGINS", pre=True)
@@ -27,9 +27,24 @@ class Settings(BaseSettings):
     
     # Database
     DATABASE_URL: PostgresDsn
+    DATABASE_POOL_SIZE: int = 20
+    DATABASE_MAX_OVERFLOW: int = 10
+    
+    @validator("DATABASE_URL", pre=True)
+    def validate_database_url(cls, v: Optional[str]) -> str:
+        if not v:
+            raise ValueError("DATABASE_URL is required")
+        # Support Neon's connection pooling
+        if "neon.tech" in v:
+            return v + "?sslmode=require&pool_size={pool_size}&max_overflow={max_overflow}"
+        return v
     
     # Debug mode
     DEBUG: bool = False
+    
+    # Host and Port (for Render)
+    HOST: str = "0.0.0.0"
+    PORT: int = 8000
     
     class Config:
         env_file = ".env"
@@ -37,4 +52,4 @@ class Settings(BaseSettings):
         case_sensitive = True
 
 
-settings = Settings() 
+settings = Settings()

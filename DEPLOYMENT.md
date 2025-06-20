@@ -1,101 +1,86 @@
 # Deployment Guide for GSTInvoicePro
 
-This document provides guidance on deploying GSTInvoicePro in a production environment.
+This document provides guidance on deploying GSTInvoicePro using free cloud services.
 
-## Production Checklist
+## Free Hosting Options
+
+We'll be using the following free services:
+- **Database**: Neon (PostgreSQL)
+- **Backend**: Render
+- **Frontend**: Vercel
+
+## Pre-deployment Checklist
 
 Before deploying to production, ensure you've completed the following:
 
-1. Set `DEBUG=false` in your backend `.env` file
+1. Set up accounts on Neon, Render, and Vercel
 2. Use a strong, randomly generated `JWT_SECRET_KEY`
 3. Configure proper database credentials with limited permissions
 4. Set appropriate `JWT_ACCESS_TOKEN_EXPIRE_MINUTES` (recommended: 15-60 minutes)
 5. Configure CORS settings properly with your exact frontend domain
 
-## Deployment Options
+## Deployment Steps
 
-### Option 1: VPS/Dedicated Server
+### 1. Database Setup - Neon
 
-#### Backend Deployment
+1. Sign up for a free account at [Neon](https://neon.tech)
+2. Create a new project
+3. Get your database connection string from the dashboard
+4. Note down the connection string - you'll need it for both backend and frontend deployment
 
-1. Clone the repository on your server
-2. Set up a virtual environment and install dependencies:
-   ```bash
-   cd backend
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   pip install -r requirements.txt
+### 2. Backend Deployment - Render
+
+1. Sign up for a free account at [Render](https://render.com)
+2. Connect your GitHub repository
+3. Create a new Web Service with these settings:
+   - **Build Command**: 
+     ```bash
+     cd backend && pip install -r requirements.txt
+     ```
+   - **Start Command**: 
+     ```bash
+     cd backend && python run.py
+     ```
+   - **Environment Variables**:
+     ```
+     DATABASE_URL=your-neon-database-url
+     JWT_SECRET_KEY=your-secret-key
+     FRONTEND_ORIGIN=https://your-app-name.vercel.app
+     DEBUG=False
+     ```
+4. Deploy your service
+5. Note down your Render service URL for frontend configuration
+
+### 3. Frontend Deployment - Vercel
+
+1. Sign up for a free account at [Vercel](https://vercel.com)
+2. Import your GitHub repository
+3. Configure environment variables:
    ```
-3. Create a `.env` file with production settings
-4. Set up a PostgreSQL database
-5. Run database migrations and initialization:
-   ```bash
-   python init_db.py
+   NEXT_PUBLIC_API_URL=https://your-render-service-url
    ```
-6. Set up Gunicorn as a production WSGI server:
-   ```bash
-   pip install gunicorn
-   gunicorn -w 4 -k uvicorn.workers.UvicornWorker app.main:app
-   ```
-7. Configure Nginx as a reverse proxy to Gunicorn
-8. Set up SSL with Let's Encrypt
-9. Create a systemd service for automatic startup and management
+4. Deploy your frontend application
 
-#### Frontend Deployment
+## Post-deployment Tasks
 
-1. Build the frontend for production:
-   ```bash
-   cd frontend
-   npm install
-   npm run build
-   ```
-2. Serve the static files using Nginx
-3. Configure proper caching headers
-4. Set up SSL with Let's Encrypt
+1. **Database Initialization**:
+   - Run migrations through Render's shell:
+     ```bash
+     cd backend
+     python init_db.py
+     ```
 
-### Option 2: Docker Deployment
+2. **Verify CORS Settings**:
+   - Ensure `FRONTEND_ORIGIN` in backend matches your Vercel URL
+   - Test API connectivity from frontend
 
-We recommend using Docker Compose for easy deployment:
+3. **Monitor Resource Usage**:
+   - Keep track of Neon's free tier database limits
+   - Monitor Render and Vercel usage metrics
 
-1. Create a `docker-compose.yml` file in the project root:
-   ```yaml
-   version: '3.8'
-   
-   services:
-     db:
-       image: postgres:13
-       volumes:
-         - postgres_data:/var/lib/postgresql/data
-       env_file:
-         - ./backend/.env
-       ports:
-         - "5432:5432"
-       environment:
-         - POSTGRES_PASSWORD=${DB_PASSWORD}
-         - POSTGRES_USER=${DB_USER}
-         - POSTGRES_DB=${DB_NAME}
-       restart: always
-   
-     backend:
-       build: ./backend
-       depends_on:
-         - db
-       env_file:
-         - ./backend/.env
-       ports:
-         - "8000:8000"
-       restart: always
-   
-     frontend:
-       build: ./frontend
-       ports:
-         - "3000:3000"
-       depends_on:
-         - backend
-       restart: always
-   
-   volumes:
-     postgres_data:
+4. **SSL/HTTPS**:
+   - Verify SSL certificates (automatically handled by Render and Vercel)
+   - Ensure all API calls use HTTPS
    ```
 
 2. Create a `Dockerfile` in the backend directory:
