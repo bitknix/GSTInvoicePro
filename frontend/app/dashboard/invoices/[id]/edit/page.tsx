@@ -1,41 +1,25 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import React, { useState, useEffect, FC } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from 'react-toastify';
 import InvoiceForm from '../../../../components/invoice/InvoiceForm';
 import api from '../../../../utils/api';
+import { Invoice } from '@/app/types';
 
-interface EditInvoicePageProps {
+interface PageProps {
   params: {
     id: string;
   };
 }
 
-// Define a proper interface for invoice data
-interface Invoice {
-  id: number;
-  invoice_number: string;
-  invoice_date: string;
-  customer_name: string;
-  status: string;
-  payment_status: string;
-  taxable_amount: number;
-  cgst_amount: number;
-  sgst_amount: number;
-  igst_amount: number;
-  grand_total: number;
-  [key: string]: any; // For other properties that might be present
-}
-
-export default function EditInvoicePage({ params }: EditInvoicePageProps) {
+const Page: FC<PageProps> = ({ params }) => {
   const router = useRouter();
-  const urlParams = useParams(); // Use the hook instead of direct params
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const invoiceId = parseInt(urlParams.id as string);
+  const invoiceId = parseInt(params.id);
 
   // Fetch invoice data
   useEffect(() => {
@@ -131,4 +115,6 @@ export default function EditInvoicePage({ params }: EditInvoicePageProps) {
       <InvoiceForm initialData={invoice} isEditing={true} />
     </div>
   );
-} 
+}
+
+export default Page; 

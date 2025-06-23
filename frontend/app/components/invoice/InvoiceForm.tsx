@@ -3,59 +3,12 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { z } from 'zod';
-import { useForm, useFieldArray, Controller } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import api from '@/app/utils/api';
-
-// Invoice interface definition for API calls
-interface Invoice {
-  id?: number;
-  invoice_number?: string;
-  invoice_date: string;
-  due_date?: string;
-  customer_id: number;
-  business_profile_id: number;
-  taxable_amount: number;
-  cgst_amount?: number;
-  sgst_amount?: number;
-  igst_amount?: number;
-  total_tax: number;
-  total_discount?: number;
-  grand_total: number;
-  notes?: string;
-  terms?: string;
-  status: 'draft' | 'published' | 'approved';
-  payment_status: 'unpaid' | 'partial' | 'paid';
-  paid_amount?: number;
-  document_type: 'Invoice' | 'Credit Note' | 'Debit Note';
-  supply_type: 'B2B' | 'B2C' | 'Export with Tax' | 'Export without Tax' | 'SEZ with Tax' | 'SEZ without Tax';
-  reference_number?: string;
-  place_of_supply?: string;
-  dispatch_from?: string;
-  ship_to?: string;
-  currency?: string;
-  port_of_export?: string;
-  discount_amount?: number;
-  round_off?: number;
-  items: InvoiceItem[];
-}
-
-interface InvoiceItem {
-  id?: number;
-  product_id: number;
-  product_name: string;
-  description?: string;
-  hsn_sac?: string;
-  quantity: number;
-  rate: number;
-  discount_percent?: number;
-  discount_amount?: number;
-  tax_rate: number;
-  total: number;
-  is_service: boolean;
-}
+import { Invoice, InvoiceItem, Product, BusinessProfile, Customer } from '@/app/types';
 
 // Form validation schema
 const invoiceItemSchema = z.object({
@@ -116,18 +69,17 @@ const invoiceSchema = z.object({
 type InvoiceFormData = z.infer<typeof invoiceSchema>;
 
 interface InvoiceFormProps {
-  initialData?: any;
+  initialData?: Partial<Invoice>;
   isEditing?: boolean;
 }
 
 export default function InvoiceForm({ initialData, isEditing = false }: InvoiceFormProps) {
   const router = useRouter();
-  const [businessProfiles, setBusinessProfiles] = useState<any[]>([]);
-  const [customers, setCustomers] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
-  const [selectedBusinessProfile, setSelectedBusinessProfile] = useState<any>(null);
-  const [selectedCustomer, setSelectedCustomer] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
+  const [businessProfiles, setBusinessProfiles] = useState<BusinessProfile[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [selectedBusinessProfile, setSelectedBusinessProfile] = useState<BusinessProfile | null>(null);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [loadingData, setLoadingData] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -194,8 +146,6 @@ export default function InvoiceForm({ initialData, isEditing = false }: InvoiceF
   const watchedItems = watch('items');
   const watchedBusinessProfileId = watch('business_profile_id');
   const watchedCustomerId = watch('customer_id');
-  const watchedSupplyType = watch('supply_type');
-  const watchedRoundOff = watch('round_off');
 
   // Load initial data
   useEffect(() => {
@@ -214,10 +164,18 @@ export default function InvoiceForm({ initialData, isEditing = false }: InvoiceF
 
         // Set initial values for editing
         if (isEditing && initialData && !itemsInitialized) {
-          setValue('invoice_date', initialData.invoice_date);
-          setValue('due_date', initialData.due_date);
-          setValue('business_profile_id', initialData.business_profile_id);
-          setValue('customer_id', initialData.customer_id);
+          if (initialData.invoice_date) {
+            setValue('invoice_date', initialData.invoice_date);
+          }
+          if (initialData.due_date) {
+            setValue('due_date', initialData.due_date);
+          }
+          if (initialData.business_profile_id) {
+            setValue('business_profile_id', initialData.business_profile_id);
+          }
+          if (initialData.customer_id) {
+            setValue('customer_id', initialData.customer_id);
+          }
           setValue('notes', initialData.notes || '');
           setValue('status', initialData.status || 'draft');
           setValue('payment_status', initialData.payment_status || 'unpaid');
@@ -230,7 +188,7 @@ export default function InvoiceForm({ initialData, isEditing = false }: InvoiceF
           setValue('currency', initialData.currency || 'INR');
           setValue('port_of_export', initialData.port_of_export || '');
           setValue('discount_amount', initialData.discount_amount || 0);
-          setValue('round_off', initialData.round_off !== undefined ? initialData.round_off : true);
+          setValue('round_off', initialData.round_off !== undefined ? Boolean(initialData.round_off) : true);
           
           // Set items - Clear all existing items first
           remove();
@@ -240,7 +198,7 @@ export default function InvoiceForm({ initialData, isEditing = false }: InvoiceF
           const addedItemIds = new Set();
           
           if (initialData.items && initialData.items.length > 0) {
-            initialData.items.forEach((item: any) => {
+            initialData.items.forEach((item: InvoiceItem) => {
               // Skip duplicate items (those with the same ID)
               if (item.id && addedItemIds.has(item.id)) {
                 return;
@@ -253,9 +211,9 @@ export default function InvoiceForm({ initialData, isEditing = false }: InvoiceF
               
               append({
                 product_id: item.product_id || 0,
-                product_name: item.product_name || (item.product && item.product.name) || '',
+                product_name: item.product_name || '',
                 description: item.description || '',
-                hsn_sac: item.hsn_sac || (item.product && item.product.hsn_sac) || '',
+                hsn_sac: item.hsn_sac || '',
                 quantity: item.quantity || 0,
                 rate: item.rate || 0,
                 discount_percent: item.discount_percent || 0,
@@ -299,12 +257,12 @@ export default function InvoiceForm({ initialData, isEditing = false }: InvoiceF
   useEffect(() => {
     if (watchedBusinessProfileId) {
       const profile = businessProfiles.find(p => p.id === watchedBusinessProfileId);
-      setSelectedBusinessProfile(profile);
+      setSelectedBusinessProfile(profile || null);
     }
     
     if (watchedCustomerId) {
       const customer = customers.find(c => c.id === watchedCustomerId);
-      setSelectedCustomer(customer);
+      setSelectedCustomer(customer || null);
     }
   }, [watchedBusinessProfileId, watchedCustomerId, businessProfiles, customers]);
 
@@ -436,7 +394,7 @@ export default function InvoiceForm({ initialData, isEditing = false }: InvoiceF
       const currentItems = data.items || [];
       
       // Process items to calculate amounts
-      const processedItems: InvoiceItem[] = currentItems.map((item) => {
+      const processedItems = currentItems.map((item) => {
         const amount = item.quantity * item.rate;
         const discountAmount = amount * ((item.discount_percent || 0) / 100);
         const taxableAmount = amount - discountAmount;
@@ -532,15 +490,13 @@ export default function InvoiceForm({ initialData, isEditing = false }: InvoiceF
         }))
       };
       
-      let response;
-      
       if (isEditing && initialData?.id) {
         // Update existing invoice using the API utility
-        response = await api.updateInvoice(initialData.id, payload);
+        await api.updateInvoice(initialData.id, payload);
         toast.success('Invoice updated successfully!');
       } else {
         // Create new invoice using the API utility
-        response = await api.createInvoice(payload);
+        await api.createInvoice(payload);
         toast.success('Invoice created successfully!');
       }
       
@@ -548,10 +504,10 @@ export default function InvoiceForm({ initialData, isEditing = false }: InvoiceF
       router.push('/dashboard/invoices');
       router.refresh();
       
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error submitting invoice:', err);
       setError('Failed to create invoice');
-      toast.error(err.message || 'An error occurred while saving the invoice');
+      toast.error('Failed to create invoice. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -559,466 +515,283 @@ export default function InvoiceForm({ initialData, isEditing = false }: InvoiceF
 
   if (loadingData) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-        <p>{error}</p>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-6">
+    <div className="max-w-4xl mx-auto p-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg">
+      <h1 className="text-2xl font-bold mb-6 text-gray-900 dark:text-white">
         {isEditing ? 'Edit Invoice' : 'Create New Invoice'}
       </h1>
-      
+
+      {error && (
+        <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+          {error}
+        </div>
+      )}
+
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {/* Document Type */}
-          <div className="col-span-1">
-            <label className="block text-sm font-medium mb-1">Document Type</label>
-            <select
-              {...register('document_type')}
-              className="w-full border border-gray-300 dark:border-gray-700 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800"
-            >
-              <option value="Invoice">Invoice</option>
-              <option value="Credit Note">Credit Note</option>
-              <option value="Debit Note">Debit Note</option>
-            </select>
-            {errors.document_type && (
-              <p className="mt-1 text-sm text-red-600">{errors.document_type.message}</p>
-            )}
-          </div>
-
-          {/* Supply Type */}
-          <div className="col-span-1">
-            <label className="block text-sm font-medium mb-1">Supply Type</label>
-            <select
-              {...register('supply_type')}
-              className="w-full border border-gray-300 dark:border-gray-700 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800"
-            >
-              <option value="B2B">B2B</option>
-              <option value="B2C">B2C</option>
-              <option value="Export with Tax">Export with Tax</option>
-              <option value="Export without Tax">Export without Tax</option>
-              <option value="SEZ with Tax">SEZ with Tax</option>
-              <option value="SEZ without Tax">SEZ without Tax</option>
-            </select>
-            {errors.supply_type && (
-              <p className="mt-1 text-sm text-red-600">{errors.supply_type.message}</p>
-            )}
-          </div>
-
-          {/* Reference Number */}
-          <div className="col-span-1">
-            <label className="block text-sm font-medium mb-1">Reference Number</label>
-            <input
-              type="text"
-              {...register('reference_number')}
-              className="w-full border border-gray-300 dark:border-gray-700 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800"
-              placeholder="PO-12345"
-            />
-          </div>
-
-          {/* Invoice Date */}
-          <div className="col-span-1">
-            <label className="block text-sm font-medium mb-1 required">Invoice Date</label>
+        {/* Basic Information */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Invoice Date
+            </label>
             <input
               type="date"
               {...register('invoice_date')}
-              className="w-full border border-gray-300 dark:border-gray-700 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800"
+              className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             {errors.invoice_date && (
-              <p className="mt-1 text-sm text-red-600">{errors.invoice_date.message}</p>
+              <p className="mt-1 text-sm text-red-600">
+                {typeof errors.invoice_date.message === 'string' ? errors.invoice_date.message : 'Invoice date is required'}
+              </p>
             )}
           </div>
 
-          {/* Due Date */}
-          <div className="col-span-1">
-            <label className="block text-sm font-medium mb-1 required">Due Date</label>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Due Date
+            </label>
             <input
               type="date"
               {...register('due_date')}
-              className="w-full border border-gray-300 dark:border-gray-700 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800"
+              className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             {errors.due_date && (
-              <p className="mt-1 text-sm text-red-600">{errors.due_date.message}</p>
+              <p className="mt-1 text-sm text-red-600">
+                {typeof errors.due_date.message === 'string' ? errors.due_date.message : 'Due date is required'}
+              </p>
             )}
-          </div>
-
-          {/* Currency */}
-          <div className="col-span-1">
-            <label className="block text-sm font-medium mb-1">Currency</label>
-            <input
-              type="text"
-              {...register('currency')}
-              className="w-full border border-gray-300 dark:border-gray-700 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800"
-              placeholder="INR"
-            />
           </div>
         </div>
 
+        {/* Business Profile and Customer Selection */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Business Profile */}
-          <div className="col-span-1">
-            <label className="block text-sm font-medium mb-1 required">Business Profile</label>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Business Profile
+            </label>
             <select
               {...register('business_profile_id', { valueAsNumber: true })}
-              className="w-full border border-gray-300 dark:border-gray-700 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800"
+              className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Select Business Profile</option>
               {businessProfiles.map((profile) => (
                 <option key={profile.id} value={profile.id}>
-                  {profile.name}
+                  {profile.name} - {profile.gstin}
                 </option>
               ))}
             </select>
             {errors.business_profile_id && (
-              <p className="mt-1 text-sm text-red-600">{errors.business_profile_id.message}</p>
-            )}
-            
-            {selectedBusinessProfile && (
-              <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-800 border rounded-md text-sm">
-                <p><strong>GSTIN:</strong> {selectedBusinessProfile.gstin}</p>
-                <p><strong>State:</strong> {selectedBusinessProfile.state}</p>
-                <p><strong>Address:</strong> {selectedBusinessProfile.address}</p>
-              </div>
+              <p className="mt-1 text-sm text-red-600">
+                {typeof errors.business_profile_id.message === 'string' ? errors.business_profile_id.message : 'Business profile is required'}
+              </p>
             )}
           </div>
 
-          {/* Customer */}
-          <div className="col-span-1">
-            <label className="block text-sm font-medium mb-1 required">Customer</label>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              Customer
+            </label>
             <select
               {...register('customer_id', { valueAsNumber: true })}
-              className="w-full border border-gray-300 dark:border-gray-700 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800"
+              className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Select Customer</option>
               {customers.map((customer) => (
                 <option key={customer.id} value={customer.id}>
-                  {customer.name}
+                  {customer.name} - {customer.gstin || 'No GSTIN'}
                 </option>
               ))}
             </select>
             {errors.customer_id && (
-              <p className="mt-1 text-sm text-red-600">{errors.customer_id.message}</p>
+              <p className="mt-1 text-sm text-red-600">
+                {typeof errors.customer_id.message === 'string' ? errors.customer_id.message : 'Customer is required'}
+              </p>
             )}
-            
-            {selectedCustomer && (
-              <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-800 border rounded-md text-sm">
-                <p><strong>GSTIN:</strong> {
-                  selectedCustomer.gstin 
-                    ? selectedCustomer.gstin 
-                    : (selectedCustomer.country && selectedCustomer.country !== 'India') 
-                      ? 'URP' 
-                      : 'N/A'
-                }</p>
-                <p><strong>State:</strong> {selectedCustomer.state}</p>
-                <p><strong>Address:</strong> {selectedCustomer.address}</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Place of Supply */}
-          <div className="col-span-1">
-            <label className="block text-sm font-medium mb-1">Place of Supply</label>
-            <input
-              type="text"
-              {...register('place_of_supply')}
-              className="w-full border border-gray-300 dark:border-gray-700 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800"
-              placeholder={selectedCustomer?.state || "Customer State"}
-            />
-          </div>
-
-          {/* Port of Export (for international) */}
-          <div className="col-span-1">
-            <label className="block text-sm font-medium mb-1">Port of Export</label>
-            <input
-              type="text"
-              {...register('port_of_export')}
-              className="w-full border border-gray-300 dark:border-gray-700 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800"
-              placeholder="Optional, for exports"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Dispatch From */}
-          <div className="col-span-1">
-            <label className="block text-sm font-medium mb-1">Dispatch From</label>
-            <textarea
-              {...register('dispatch_from')}
-              rows={3}
-              className="w-full border border-gray-300 dark:border-gray-700 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800"
-              placeholder={selectedBusinessProfile?.address || "Business Address"}
-            />
-          </div>
-
-          {/* Ship To */}
-          <div className="col-span-1">
-            <label className="block text-sm font-medium mb-1">Ship To</label>
-            <textarea
-              {...register('ship_to')}
-              rows={3}
-              className="w-full border border-gray-300 dark:border-gray-700 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800"
-              placeholder={selectedCustomer?.address || "Customer Address"}
-            />
           </div>
         </div>
 
         {/* Invoice Items */}
-        <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-medium">Invoice Items</h3>
+        <div>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Invoice Items</h2>
             <button
               type="button"
               onClick={addItem}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
               Add Item
             </button>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-800">
-                <tr>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Product</th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Description</th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">HSN/SAC</th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Qty</th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Rate</th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Disc %</th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Tax %</th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
-                  <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Action</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-800">
-                {fields.map((field, index) => {
-                  const productAmount = watchedItems[index]?.quantity * watchedItems[index]?.rate || 0;
-                  const discountAmount = productAmount * (watchedItems[index]?.discount_percent || 0) / 100;
-                  const taxableAmount = productAmount - discountAmount;
-                  const totalAmount = taxableAmount * (1 + (watchedItems[index]?.tax_rate || 0) / 100);
-                    
-                  return (
-                    <tr key={field.id} className="hover:bg-gray-50 dark:hover:bg-gray-800">
-                      <td className="px-3 py-2">
-                        <select
-                          {...register(`items.${index}.product_id` as const, { valueAsNumber: true })}
-                          className="w-full border border-gray-300 dark:border-gray-700 rounded p-1.5 text-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800"
-                          onChange={(e) => {
-                            const productId = parseInt(e.target.value, 10);
-                            const product = products.find(p => p.id === productId);
-                            if (product) {
-                              setValue(`items.${index}.product_name`, product.name || '');
-                              setValue(`items.${index}.description`, product.description || '');
-                              setValue(`items.${index}.hsn_sac`, product.hsn_sac || '');
-                              setValue(`items.${index}.rate`, product.price || 0);
-                              setValue(`items.${index}.tax_rate`, product.tax_rate || 0);
-                              setValue(`items.${index}.is_service`, product.is_service || false);
-                            }
-                          }}
-                        >
-                          <option value="0">Select Product</option>
-                          {products.map((product) => (
-                            <option key={product.id} value={product.id}>
-                              {product.name}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="text"
-                          {...register(`items.${index}.description` as const)}
-                          className="w-full border border-gray-300 dark:border-gray-700 rounded p-1.5 text-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="text"
-                          {...register(`items.${index}.hsn_sac` as const)}
-                          className="w-32 border border-gray-300 dark:border-gray-700 rounded p-1.5 text-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="number"
-                          {...register(`items.${index}.quantity` as const, {
-                            valueAsNumber: true,
-                          })}
-                          step="0.001"
-                          min="0"
-                          className="w-20 border border-gray-300 dark:border-gray-700 rounded p-1.5 text-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="number"
-                          {...register(`items.${index}.rate` as const, {
-                            valueAsNumber: true,
-                          })}
-                          step="0.001"
-                          min="0"
-                          className="w-24 border border-gray-300 dark:border-gray-700 rounded p-1.5 text-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="number"
-                          {...register(`items.${index}.discount_percent` as const, {
-                            valueAsNumber: true,
-                          })}
-                          step="0.01"
-                          min="0"
-                          max="100"
-                          className="w-16 border border-gray-300 dark:border-gray-700 rounded p-1.5 text-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800"
-                        />
-                      </td>
-                      <td className="px-3 py-2">
-                        <input
-                          type="number"
-                          {...register(`items.${index}.tax_rate` as const, {
-                            valueAsNumber: true,
-                          })}
-                          step="0.01"
-                          min="0"
-                          className="w-16 border border-gray-300 dark:border-gray-700 rounded p-1.5 text-sm focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800"
-                        />
-                      </td>
-                      <td className="px-3 py-2 font-medium">
-                        ₹{totalAmount.toFixed(3)}
-                      </td>
-                      <td className="px-3 py-2">
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteItem(index)}
-                          className="inline-flex items-center justify-center p-1 text-white bg-red-500 hover:bg-red-600 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500"
-                          title="Remove item"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="space-y-4">
+            {fields.map((field, index) => (
+              <div key={field.id} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Product
+                    </label>
+                    <select
+                      {...register(`items.${index}.product_id` as const, { valueAsNumber: true })}
+                      className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value={0}>Select Product</option>
+                      {products.map((product) => (
+                        <option key={product.id} value={product.id}>
+                          {product.name} - {product.hsn_sac}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      HSN/SAC Code
+                    </label>
+                    <input
+                      type="text"
+                      {...register(`items.${index}.hsn_sac` as const)}
+                      className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="HSN/SAC Code"
+                    />
+                    {errors.items?.[index]?.hsn_sac && (
+                      <p className="mt-1 text-sm text-red-600">{errors.items[index]?.hsn_sac?.message}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Quantity
+                    </label>
+                    <input
+                      type="number"
+                      {...register(`items.${index}.quantity` as const, { valueAsNumber: true })}
+                      className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Quantity"
+                    />
+                    {errors.items?.[index]?.quantity && (
+                      <p className="mt-1 text-sm text-red-600">{errors.items[index]?.quantity?.message}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Rate
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      {...register(`items.${index}.rate` as const, { valueAsNumber: true })}
+                      className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Rate"
+                    />
+                    {errors.items?.[index]?.rate && (
+                      <p className="mt-1 text-sm text-red-600">{errors.items[index]?.rate?.message}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Tax Rate (%)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      {...register(`items.${index}.tax_rate` as const, { valueAsNumber: true })}
+                      className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Tax Rate"
+                    />
+                    {errors.items?.[index]?.tax_rate && (
+                      <p className="mt-1 text-sm text-red-600">{errors.items[index]?.tax_rate?.message}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                      Discount (%)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      {...register(`items.${index}.discount_percent` as const, { valueAsNumber: true })}
+                      className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Discount %"
+                    />
+                  </div>
+
+                  <div className="flex items-end">
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteItem(index)}
+                      className="px-3 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Tax and Totals Summary */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="col-span-1">
-            <div className="rounded-md border border-gray-200 dark:border-gray-700 p-4">
-              <h3 className="text-lg font-medium mb-3">Notes</h3>
-              <textarea
-                {...register('notes')}
-                rows={4}
-                className="w-full border border-gray-300 dark:border-gray-700 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800"
-                placeholder="Payment terms, delivery instructions, etc."
-              />
-              <div className="mt-3">
-                <label className="inline-flex items-center">
-                  <input
-                    type="checkbox"
-                    {...register('round_off')}
-                    className="rounded text-blue-600 focus:ring-blue-500 h-4 w-4"
-                  />
-                  <span className="ml-2 text-sm">Round off to nearest rupee</span>
-                </label>
-              </div>
+        {/* Tax Summary */}
+        <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+          <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Tax Summary</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+              <span className="text-gray-600 dark:text-gray-400">Subtotal:</span>
+              <span className="ml-2 font-medium">₹{taxSummary.subtotal.toFixed(2)}</span>
             </div>
-              </div>
-              
-          <div className="col-span-1">
-            <div className="rounded-md border border-gray-200 dark:border-gray-700 p-4">
-              <h3 className="text-lg font-medium mb-3">Summary</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span>Subtotal:</span>
-                  <span>₹{taxSummary.subtotal.toFixed(3)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Discount:</span>
-                  <span>₹{taxSummary.discountTotal.toFixed(3)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Taxable Amount:</span>
-                  <span>₹{(taxSummary.subtotal - taxSummary.discountTotal).toFixed(3)}</span>
-                </div>
-                
-                {selectedBusinessProfile?.state === selectedCustomer?.state ? (
-                  <>
-                    <div className="flex justify-between">
-                      <span>CGST:</span>
-                      <span>₹{taxSummary.cgstTotal.toFixed(3)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>SGST:</span>
-                      <span>₹{taxSummary.sgstTotal.toFixed(3)}</span>
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex justify-between">
-                    <span>IGST:</span>
-                    <span>₹{taxSummary.igstTotal.toFixed(3)}</span>
-                </div>
-              )}
-              
-                {watch('round_off') && (
-                  <div className="flex justify-between">
-                    <span>Round Off:</span>
-                    <span>₹{taxSummary.roundOff.toFixed(3)}</span>
-              </div>
-                )}
-                
-                <div className="flex justify-between border-t border-gray-200 dark:border-gray-700 pt-2 mt-2 font-bold">
-                  <span>Total:</span>
-                  <span>₹{taxSummary.total.toFixed(3)}</span>
-                </div>
-              </div>
+            <div>
+              <span className="text-gray-600 dark:text-gray-400">CGST:</span>
+              <span className="ml-2 font-medium">₹{taxSummary.cgstTotal.toFixed(2)}</span>
+            </div>
+            <div>
+              <span className="text-gray-600 dark:text-gray-400">SGST:</span>
+              <span className="ml-2 font-medium">₹{taxSummary.sgstTotal.toFixed(2)}</span>
+            </div>
+            <div>
+              <span className="text-gray-600 dark:text-gray-400">IGST:</span>
+              <span className="ml-2 font-medium">₹{taxSummary.igstTotal.toFixed(2)}</span>
+            </div>
+            <div>
+              <span className="text-gray-600 dark:text-gray-400">Total Tax:</span>
+              <span className="ml-2 font-medium">₹{taxSummary.taxAmount.toFixed(2)}</span>
+            </div>
+            <div>
+              <span className="text-gray-600 dark:text-gray-400">Total:</span>
+              <span className="ml-2 font-bold text-lg">₹{taxSummary.total.toFixed(2)}</span>
             </div>
           </div>
         </div>
 
-        <div className="flex justify-end space-x-4 mt-6">
+        {/* Notes */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Notes
+          </label>
+          <textarea
+            {...register('notes')}
+            rows={3}
+            className="w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Additional notes..."
+          />
+        </div>
+
+        {/* Submit Button */}
+        <div className="flex justify-end">
           <button
-            type="button"
-            className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            onClick={() => router.back()}
-            disabled={submitting}
-          >
-            Cancel
-          </button>
-          <button 
             type="submit"
             disabled={submitting}
-            className="inline-flex justify-center items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {submitting ? (
-              <>
-                <span className="mr-2 animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></span>
-                {isEditing ? 'Updating...' : 'Creating...'}
-              </>
-            ) : (
-              isEditing ? 'Update Invoice' : 'Create Invoice'
-            )}
+            {submitting ? 'Saving...' : (isEditing ? 'Update Invoice' : 'Create Invoice')}
           </button>
         </div>
       </form>

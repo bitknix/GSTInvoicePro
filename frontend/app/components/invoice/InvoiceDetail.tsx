@@ -68,7 +68,12 @@ export default function InvoiceDetail({ invoice, onStatusChange }: InvoiceDetail
       toast.success('PDF downloaded successfully');
     } catch (error) {
       console.error('Error downloading PDF:', error);
-      const errorMessage = error.message || 'An unexpected error occurred';
+      let errorMessage = 'An unexpected error occurred';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
       toast.error(`Failed to download PDF: ${errorMessage}`);
       
       // If it's likely a backend issue, suggest a solution and use fallback
@@ -465,4 +470,4 @@ export default function InvoiceDetail({ invoice, onStatusChange }: InvoiceDetail
       </div>
     </div>
   );
-} 
+}

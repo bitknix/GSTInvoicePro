@@ -110,6 +110,10 @@ export interface Invoice {
   igst_total?: number;
   tax_type: string;
   
+  // Status fields
+  status: 'draft' | 'published' | 'approved';
+  payment_status: 'unpaid' | 'partial' | 'paid';
+  
   // New fields
   document_type: 'Invoice' | 'Credit Note' | 'Debit Note';
   supply_type: 'B2B' | 'B2C' | 'Export with Tax' | 'Export without Tax' | 'SEZ with Tax' | 'SEZ without Tax';
@@ -131,6 +135,7 @@ export interface InvoiceItem {
   id: number;
   invoice_id: number;
   product_id: number;
+  product_name?: string;
   quantity: number;
   rate: number;
   tax_rate: number;
@@ -147,6 +152,7 @@ export interface InvoiceItem {
   description?: string;
   discount_percent?: number;
   discount_amount?: number;
+  is_service?: boolean;
 }
 
 export interface InvoiceItemCreate {
