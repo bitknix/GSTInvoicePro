@@ -3,7 +3,7 @@ from app.db.base import Base  # Make sure this imports your Base and all models
 from app.core.config import settings
 import logging
 
-def create_tables():
+def run_migrations():
     try:
         engine = create_engine(settings.DATABASE_URL)
         Base.metadata.create_all(bind=engine)
@@ -12,4 +12,4 @@ def create_tables():
         logging.error(f"❌ Failed to create tables: {e}")
 
 if __name__ == "__main__":
-    create_tables()
+    run_migrations()
