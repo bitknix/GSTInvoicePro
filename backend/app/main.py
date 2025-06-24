@@ -8,6 +8,8 @@ from starlette.responses import Response
 from app.api.api_v1.api import api_router
 from app.core.config import settings
 
+import os
+
 # Custom middleware for security headers
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -32,7 +34,7 @@ app = FastAPI(
 if settings.FRONTEND_ORIGIN:
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[settings.FRONTEND_ORIGIN],
+        allow_origins=[os.getenv("FRONTEND_ORIGIN")],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
