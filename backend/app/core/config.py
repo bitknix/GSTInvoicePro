@@ -12,11 +12,14 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str
     JWT_ALGORITHM: str = "HS256"
     JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
-    
+
     # CORS Settings
     FRONTEND_ORIGIN: str
     BACKEND_CORS_ORIGINS: List[AnyHttpUrl] = []
-    
+
+    # Optional backend host for deployments like Render
+    BACKEND_HOST: str = "localhost"
+
     @validator("BACKEND_CORS_ORIGINS", pre=True)
     def assemble_cors_origins(cls, v: List[str]) -> List[AnyHttpUrl]:
         if isinstance(v, str) and not v.startswith("["):
@@ -27,14 +30,14 @@ class Settings(BaseSettings):
     
     # Database
     DATABASE_URL: PostgresDsn
-    
+
     # Debug mode
     DEBUG: bool = False
-    
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = True
 
 
-settings = Settings() 
+settings = Settings()
