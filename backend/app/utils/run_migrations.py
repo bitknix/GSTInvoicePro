@@ -1,9 +1,15 @@
-# app/utils/run_migrations.py
+from sqlalchemy import create_engine
+from app.db.base import Base  # Make sure this imports your Base and all models
+from app.core.config import settings
+import logging
 
-import os
-from alembic.config import Config
-from alembic import command
+def create_tables():
+    try:
+        engine = create_engine(settings.DATABASE_URL)
+        Base.metadata.create_all(bind=engine)
+        logging.info("✅ Tables created successfully from SQLAlchemy models.")
+    except Exception as e:
+        logging.error(f"❌ Failed to create tables: {e}")
 
-def run_migrations():
-    alembic_cfg = Config(os.path.join(os.path.dirname(__file__), "../../alembic.ini"))
-    command.upgrade(alembic_cfg, "head")
+if __name__ == "__main__":
+    create_tables()
